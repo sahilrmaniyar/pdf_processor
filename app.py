@@ -24,7 +24,16 @@ Follow these instructions precisely:
 2.  For each question, identify and extract the question number, the full question text, and all multiple-choice options.
 3.  **Crucially, for any images of mathematical equations, diagrams, or circuits, convert them into appropriate LaTeX code.** Enclose inline LaTeX with `$` and block-level LaTeX with `$$`.
 4.  Identify the correct answer. The correct answer is usually marked with a "☑" symbol or is the only non-crossed-out option.
-5.  After listing all questions, create a final consolidated answer key under a "### Answers" heading. Group the answers by section.
+5.  After listing all questions, create a final consolidated answer key. This section must start with the exact line "### Answers" and be immediately preceded by "<!-- START_ANSWERS_HERE -->" and immediately followed by "<!-- END_ANSWERS_HERE -->". For example:
+<!-- START_ANSWERS_HERE -->
+### Answers
+Section 1
+1. A
+2. B
+Section 2
+1. C
+<!-- END_ANSWERS_HERE -->
+Group the answers by section.
 6.  The final output must be pure markdown, ready to be displayed. Do not include any of your own commentary. Do not output the word "markdown".
 """
 
@@ -56,14 +65,40 @@ if st.button("✨ Process Paper", disabled=(not uploaded_file or not api_key)):
                 formatted_text = response.text
                 st.balloons()
 
+            # --- Extract Answer Key ---
+            start_marker = "<!-- START_ANSWERS_HERE -->"
+            end_marker = "<!-- END_ANSWERS_HERE -->"
+            answer_section_text = ""
+            main_content_text = formatted_text
+
+            start_pos = formatted_text.find(start_marker)
+            end_pos = formatted_text.find(end_marker)
+
+            if start_pos != -1 and end_pos != -1 and start_pos < end_pos:
+                answer_section_text = formatted_text[start_pos + len(start_marker):end_pos].strip()
+                main_content_text = formatted_text[:start_pos] + formatted_text[end_pos + len(end_marker):]
+
+                # Remove "### Answers" heading if present
+                if answer_section_text.startswith("### Answers"):
+                    answer_section_text = answer_section_text[len("### Answers"):].lstrip()
+            else:
+                st.warning("Answer key markers not found in the processed output. The separate answer list cannot be displayed.")
+
             st.divider()
             st.subheader("🎉 Processed Output")
-            st.markdown(formatted_text)
+            with st.expander("🔍 View Full Processed Paper", expanded=True):
+                st.markdown(main_content_text) # Display main content here
 
-            # Add a download button for the formatted text
+            # Display answer section if extracted
+            if answer_section_text:
+                st.subheader("🔑 Consolidated Answer Key")
+                with st.expander("View Answer Key", expanded=False):
+                    st.markdown(answer_section_text)
+
+            # Add a download button for the formatted text (original full text)
             st.download_button(
                 label="Download as Markdown",
-                data=formatted_text,
+                data=formatted_text, # This should be the original full text
                 file_name=f"{uploaded_file.name.replace('.pdf', '')}_formatted.md",
                 mime="text/markdown"
             )
