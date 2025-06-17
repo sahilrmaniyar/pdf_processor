@@ -41,7 +41,7 @@ if st.button("✨ Process Paper", disabled=(not uploaded_file or not api_key)):
     if uploaded_file and api_key:
         try:
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-1.5-pro-latest')
+            model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
             with st.spinner("Step 1/3: Reading and processing the PDF..."):
                 content_parts = process_pdf(uploaded_file)
