@@ -1,48 +1,40 @@
 import streamlit as st
-from robust_parser import parse_pdf_robustly
+from final_parser import parse_final
 import collections
 
 # --- Page Configuration ---
-st.set_page_config(
-    page_title="PDF Exam Paper Processor",
-    page_icon="📄",
-    layout="wide"
-)
+st.set_page_config(page_title="Final PDF Exam Processor", page_icon="✅", layout="wide")
 
 # --- App UI ---
-st.title("📄 Robust PDF Exam Processor")
-st.markdown("Upload your PDF exam paper. This improved tool uses layout analysis to correctly filter metadata, banners, and incorrect answers.")
+st.title("✅ Final PDF Exam Processor")
+st.markdown("This version extracts **only the questions** and provides a consolidated answer key at the end, filtering out all other noise.")
 
 # --- Helper Function to Build Markdown for Download ---
-def format_data_for_download(structured_data):
-    """Converts the structured data from the parser into a single markdown string for download."""
+def format_for_download(structured_data):
     output_lines = []
-    
     sections = collections.defaultdict(list)
     for q in structured_data:
         sections[q['section']].append(q)
 
+    # Part 1: Questions
     for section_name, questions_in_section in sections.items():
-        output_lines.append(f"## {section_name}\n")
+        if not questions_in_section: continue
+        output_lines.append(f"## Section: {section_name}\n")
         sorted_questions = sorted(questions_in_section, key=lambda x: int(x['number']))
-        
         for q in sorted_questions:
-            # Clean up newlines in question text
-            q_text = ' '.join(q['text'].split())
-            output_lines.append(f"**Q.{q['number']}:** {q_text}\n")
-            
-            for letter, text in sorted(q['options'].items()):
-                output_lines.append(f"- **{letter}.** {text}")
-            output_lines.append("\n---\n")
+            clean_text = ' '.join(q['text'].split())
+            output_lines.append(f"**Q.{q['number']}:** {clean_text}\n")
+        output_lines.append("---\n")
     
-    # --- Add Consolidated Answer Key ---
+    # Part 2: Answer Key
     output_lines.append("## 🔑 Answer Key\n")
     for section_name, questions_in_section in sections.items():
+        if not questions_in_section: continue
         output_lines.append(f"**{section_name}**")
         answer_line = []
         sorted_questions = sorted(questions_in_section, key=lambda x: int(x['number']))
         for q in sorted_questions:
-            answer = q['correct'] if q['correct'] else 'N/A'
+            answer = q['answer'] if q['answer'] else 'N/A'
             answer_line.append(f"**{q['number']}**: {answer}")
         output_lines.append(" | ".join(answer_line) + "\n")
         
@@ -52,56 +44,34 @@ def format_data_for_download(structured_data):
 uploaded_file = st.file_uploader("Upload your PDF file", type="pdf")
 
 if uploaded_file:
-    if st.button("✨ Process Paper"):
+    if st.button("🚀 Process My Exam Paper"):
         try:
             file_bytes = uploaded_file.getvalue()
-            
-            with st.spinner("Analyzing PDF layout and content... This might take a moment."):
-                structured_data = parse_pdf_robustly(file_bytes)
+            with st.spinner("Performing high-precision parsing... Please wait."):
+                structured_data = parse_final(file_bytes)
             
             if not structured_data:
-                st.warning("Could not extract any questions. The PDF format might be unsupported or empty.")
+                st.warning("Could not extract any questions. The PDF might be image-based or in an unsupported format.")
             else:
                 st.success(f"Processing complete! Found {len(structured_data)} questions.")
-                st.divider()
+                
+                # Generate final string for display and download
+                final_output_string = format_for_download(structured_data)
 
-                # --- Prepare and add Download Button ---
-                download_string = format_data_for_download(structured_data)
+                # Add Download Button First
                 st.download_button(
-                    label="⬇️ Download as Markdown File",
-                    data=download_string,
-                    file_name=f"{uploaded_file.name.replace('.pdf', '')}_formatted.md",
+                    label="⬇️ Download Processed File",
+                    data=final_output_string,
+                    file_name=f"{uploaded_file.name.replace('.pdf', '')}_processed.md",
                     mime="text/markdown"
                 )
                 st.divider()
 
-                # --- Display Formatted Output on the Page ---
-                st.subheader("🎉 Processed Output")
-                
-                sections = collections.defaultdict(list)
-                for q in structured_data:
-                    sections[q['section']].append(q)
-
-                for section_name, questions_in_section in sections.items():
-                    st.header(section_name)
-                    sorted_questions = sorted(questions_in_section, key=lambda x: int(x['number']))
-                    for q in sorted_questions:
-                        # Clean up text for display
-                        q_text = ' '.join(q['text'].split())
-                        st.markdown(f"**Q.{q['number']}:** {q_text}")
-                        if q['images']:
-                            for img in q['images']:
-                                st.image(img, use_column_width=True)
-                        for letter, text in sorted(q['options'].items()):
-                            # Use a green checkmark for the correct answer in the UI
-                            if letter == q['correct']:
-                                st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;✅&nbsp;&nbsp;**{letter}.** {text}")
-                            else:
-                                st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;**{letter}.** {text}")
-                        st.markdown("---")
+                # Display results on the page
+                st.markdown(final_output_string)
 
         except Exception as e:
-            st.error(f"An error occurred during processing: {e}")
-            st.error("Please ensure the PDF is valid and not corrupted. This parser is tuned for the provided AAI exam paper format.")
+            st.error(f"An unexpected error occurred: {e}")
+            st.error("This parser is highly tuned. If it fails, the PDF structure might be significantly different from the sample provided.")
 else:
-    st.info("Please upload a PDF to begin.")
+    st.info("Please upload your PDF file to begin.")
